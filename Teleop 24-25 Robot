@@ -1,0 +1,158 @@
+package org.firstinspires.ftc.teamcode;
+
+import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
+import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
+import com.qualcomm.robotcore.hardware.CRServo;
+import com.qualcomm.robotcore.hardware.DcMotor;
+import com.qualcomm.robotcore.hardware.DcMotorEx;
+import com.qualcomm.robotcore.hardware.Servo;
+
+import org.firstinspires.ftc.robotcore.external.navigation.CurrentUnit;
+
+@TeleOp(name = "TeleOp2425", group="Robot")
+public class TeleOp2425 extends LinearOpMode {
+
+  public Servo Intake = null;
+  // public Servo Wrist = null;
+  public DcMotor FrontRight = null;
+  public DcMotor BackRight = null;
+  public DcMotor FrontLeft = null;
+  public DcMotor BackLeft = null;
+  public DcMotor Larm = null;
+  public DcMotor ViperSlide = null;
+
+  /**
+  * This function is executed when this Op Mode is selected from the Driver Station.
+  */
+  @Override
+  public void runOpMode() {
+    double servoPosPick;
+    double servoPosStart;
+    boolean moved;
+    int pauseLarm;
+    double powervar;
+    double frontPowerVar;
+    double backPowerVar;
+    int intakeActive;
+    boolean clawOpen = false;
+    // boolean wristOpen = false;
+
+    Intake = hardwareMap.get(Servo.class, "Intake");
+    // Wrist = hardwareMap.get(Servo.class, "Wrist");
+    FrontRight = hardwareMap.get(DcMotor.class, "FrontRight");
+    BackRight = hardwareMap.get(DcMotor.class, "BackRight");
+    FrontLeft = hardwareMap.get(DcMotor.class, "FrontLeft");
+    BackLeft = hardwareMap.get(DcMotor.class, "BackLeft");
+    Larm = hardwareMap.get(DcMotor.class, "Larm");
+    ViperSlide = hardwareMap.get(DcMotor.class, "ViperSlide");
+
+    // Put initialization blocks here.\
+    
+    moved = false;
+    powervar = 0.5;
+    frontPowerVar = 0.3;
+    backPowerVar = 0.75;
+    intakeActive = 0;
+    servoPosStart = Intake.getPosition();
+    servoPosPick = Intake.getPosition();
+    pauseLarm = 0;
+    waitForStart();
+    
+    Intake.setPosition(0); // Close
+    // Wrist.setPosition(0);/
+    Larm.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
+    FrontRight.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
+    BackRight.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
+    FrontLeft.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
+    BackLeft.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
+    if (opModeIsActive()) {
+      // Starting between .7 and .71
+      // Put run blocks here.
+      // Front Right Wheel Movement is reversed
+      // Front Left Wheel Movement is normal
+      // Back Right Wheel Movement is reversed
+      // Back Left Wheel Movement is normal
+    }
+    while (opModeIsActive()) {
+      // Put loop blocks here.
+      // moved = false;
+      // Movement Statements
+      if (0.1 < Math.abs(gamepad1.left_stick_y)) { // button: stick
+        // moved = true;
+        FrontRight.setPower(-gamepad1.left_stick_y * frontPowerVar);
+        BackRight.setPower(-gamepad1.left_stick_y * backPowerVar);
+        FrontLeft.setPower(gamepad1.left_stick_y * frontPowerVar);
+        BackLeft.setPower(gamepad1.left_stick_y * backPowerVar);
+      }
+      else if (0.1 < Math.abs(gamepad1.left_stick_x)) { // button: stick
+        // moved = true;
+        FrontRight.setPower(-gamepad1.left_stick_x * powervar);
+        BackRight.setPower(gamepad1.left_stick_x * powervar);
+        FrontLeft.setPower(-gamepad1.left_stick_x * powervar);
+        BackLeft.setPower(gamepad1.left_stick_x * powervar);
+      }
+      else if (0.1 < Math.abs(gamepad1.right_stick_x)) { // button: stick
+        // moved = true;
+        FrontRight.setPower(-gamepad1.right_stick_x * frontPowerVar);
+        BackRight.setPower(-gamepad1.right_stick_x * backPowerVar);
+        FrontLeft.setPower(-gamepad1.right_stick_x * frontPowerVar);
+        BackLeft.setPower(-gamepad1.right_stick_x * backPowerVar);
+      }
+      else { // (!moved)
+        FrontRight.setPower(0);
+        BackRight.setPower(0);
+        FrontLeft.setPower(0);
+        BackLeft.setPower(0);
+      }
+      // Arm Statements
+      if (Math.abs(gamepad1.right_stick_y) > 0.1) { // button
+        pauseLarm = 0;
+        Larm.setPower(-gamepad1.right_stick_y);
+      } 
+      else if (gamepad1.back || pauseLarm == 1) {
+          Larm.setPower(0.1);
+          pauseLarm = 1;
+        } 
+      else {
+          Larm.setPower(0);
+          pauseLarm = 0;
+        }
+      
+      // Viper Slide Statements
+      if (gamepad1.left_bumper) { // button
+        ViperSlide.setPower(-0.5);
+      } 
+      else if (gamepad1.right_bumper) { // button
+        ViperSlide.setPower(0.5);
+      } 
+      else {
+        ViperSlide.setPower(0);
+      }
+      // Claw Statements
+      if (gamepad1.a) { // button
+        if (clawOpen) {
+          clawOpen = false;
+          Intake.setPosition(0);
+        }
+        else {
+          clawOpen = true;
+          Intake.setPosition(.5);
+  
+        }
+      
+        // servoPosStart += 0.05;
+      }
+      // if (gamepad1.b) { // button
+      //   if (wristOpen) {
+      //     wristOpen = false;
+      //     Wrist.setPosition(0);
+      //   }
+      //   else {
+      //     wristOpen = true;
+      //     Wrist.setPosition(1);
+      //   }
+        // }
+      telemetry.update();
+    }
+  }
+}
