@@ -7,10 +7,12 @@ import com.qualcomm.robotcore.hardware.DcMotor;
 import com.qualcomm.robotcore.hardware.DcMotorEx;
 import com.qualcomm.robotcore.hardware.Servo;
 
+import java.lang.Math;
+
 import org.firstinspires.ftc.robotcore.external.navigation.CurrentUnit;
 
-@TeleOp(name = "TeleOp2425", group="Robot")
-public class TeleOp2425 extends LinearOpMode {
+@TeleOp(name = "TeleOp2425_Copy2_Copy", group="Robot")
+public class TeleOp2425_Copy2_Copy extends LinearOpMode {
 
   public Servo Intake = null;
   // public Servo Wrist = null;
@@ -34,8 +36,24 @@ public class TeleOp2425 extends LinearOpMode {
     double frontPowerVar;
     double backPowerVar;
     int intakeActive;
+    int clawTimer;
+    final int clawTimerMax;
+    int autoSpecimenTimer;
+    final int autoSpecimenTimerMax;
     boolean clawOpen = false;
     // boolean wristOpen = false;
+    double angleLarmTicks;
+    double angleLarm;
+    int fudgeLarm = 5;
+    int LarmAdjustTimer;
+    final int LarmAdjustTimerMax;
+    double posSlideTicks;
+    double posSlide;
+    int slideAdjustTimer;
+    final int slideAdjustTimerMax;
+    double x;
+    int trueZeroAngle = 12; // 0 degrees corresponds to the 0 ticks pos
+// Check if d-pad down is pressed
 
     Intake = hardwareMap.get(Servo.class, "Intake");
     // Wrist = hardwareMap.get(Servo.class, "Wrist");
@@ -48,23 +66,74 @@ public class TeleOp2425 extends LinearOpMode {
 
     // Put initialization blocks here.\
     
+    final double ARM_TICKS_PER_DEGREE =
+            1203 / 47 // number of encoder ticks per rotation of the bare motor
+                    * 188 / 1 // This is the exact gear ratio of our Yellow Jacket gearbox
+                    * 100.0 / 30.0 // This is the external gear reduction, a 30T pinion gear that drives a 100T hub-mount gear
+                    * 1/360.0; // we want ticks per degree, not per rotation
+    
+    final double SLIDE_TICKS_PER_INCH =
+            109350/4700 // number of encoder ticks per rotation of the bare motor
+                    * 19.2/ 1 // This is the exact gear ratio of our Yellow Jacket gearbox
+                    * 1 / 1 // This is the external gear reduction, a 60T pinion gear only exists
+                    * 1/5 // we want ticks per inch, not per rotation. We get 5 inches per rotation
+                    * 37/28 // Error with above^
+                    * 25 / 26.6875;
+                    
+    
+    ((DcMotorEx) Larm).setCurrentAlert(5,CurrentUnit.AMPS);
+    ((DcMotorEx) ViperSlide).setCurrentAlert(5,CurrentUnit.AMPS);
+    
+    /* Before starting the armMotor. We'll make sure the TargetPosition is set to 0.
+        Then we'll set the RunMode to RUN_TO_POSITION. And we'll ask it to stop and reset encoder.
+        If you do not have the encoder plugged into this motor, it will not run in this code. */
+        Larm.setTargetPosition(0);
+        Larm.setMode(DcMotor.RunMode.RUN_TO_POSITION);
+        Larm.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER); 
+        
+        ViperSlide.setTargetPosition(0);
+        ViperSlide.setMode(DcMotor.RunMode.RUN_TO_POSITION);
+        ViperSlide.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER); 
+    
     moved = false;
     powervar = 0.5;
     frontPowerVar = 0.3;
     backPowerVar = 0.75;
     intakeActive = 0;
-    servoPosStart = Intake.getPosition();
-    servoPosPick = Intake.getPosition();
-    pauseLarm = 0;
+    
+    clawTimer = 0;
+    clawTimerMax = 20;
+    
+    autoSpecimenTimer = 0;
+    autoSpecimenTimerMax = 150;
+    
+    LarmAdjustTimer = 0;
+    LarmAdjustTimerMax = 20;
+    
+    slideAdjustTimer = 0;
+    slideAdjustTimerMax = 40;
+    
+    
+    // servoPosStart = Intake.getPosition();
+    // servoPosPick = Intake.getPosition();
+    angleLarmTicks = 0;
+    angleLarm = 0;
+    
+    posSlideTicks = 0;
+    posSlide = 0;
+    
+    
     waitForStart();
     
     Intake.setPosition(0); // Close
-    // Wrist.setPosition(0);/
+    // Wrist.setPosition(0);
     Larm.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
+    ViperSlide.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
     FrontRight.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
     BackRight.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
     FrontLeft.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
     BackLeft.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
+    
     if (opModeIsActive()) {
       // Starting between .7 and .71
       // Put run blocks here.
@@ -75,6 +144,10 @@ public class TeleOp2425 extends LinearOpMode {
     }
     while (opModeIsActive()) {
       // Put loop blocks here.
+      clawTimer += 1;
+      slideAdjustTimer += 1;
+      LarmAdjustTimer += 1;
+      autoSpecimenTimer += 1;
       // moved = false;
       // Movement Statements
       if (0.1 < Math.abs(gamepad1.left_stick_y)) { // button: stick
@@ -105,54 +178,124 @@ public class TeleOp2425 extends LinearOpMode {
         BackLeft.setPower(0);
       }
       // Arm Statements
-      if (Math.abs(gamepad1.right_stick_y) > 0.1) { // button
-        pauseLarm = 0;
-        Larm.setPower(-gamepad1.right_stick_y);
-      } 
-      else if (gamepad1.back || pauseLarm == 1) {
-          Larm.setPower(0.1);
-          pauseLarm = 1;
-        } 
-      else {
-          Larm.setPower(0);
-          pauseLarm = 0;
-        }
       
-      // Viper Slide Statements
-      if (gamepad1.left_bumper) { // button
-        ViperSlide.setPower(-0.5);
+      if (Math.abs(gamepad1.right_stick_y) > 0.1  && LarmAdjustTimer > LarmAdjustTimerMax ) { // button
+        // LarmAdjustTimer = 0;
+        // angleLarmTicks += 10 * -gamepad1.right_stick_y * ARM_TICKS_PER_DEGREE;
+        if ((posSlide+16) * Math.abs(Math.cos((angleLarm + fudgeLarm * gamepad1.right_stick_y + trueZeroAngle) * (Math.PI/180))) > 40) {telemetry.addLine("VIPER SLIDE REACHED MAXIMUM HORIZONTAL LENGTH!");}
+        
+        else {
+        angleLarm += fudgeLarm * gamepad1.right_stick_y;
+        }
+        // We dont have the same number of encoder ticks per second, differnt gear ratios. 
       } 
-      else if (gamepad1.right_bumper) { // button
-        ViperSlide.setPower(0.5);
-      } 
-      else {
-        ViperSlide.setPower(0);
+      
+         // Check if d-pad down is pressed
+      if (gamepad1.dpad_down) {
+        if (((posSlide+16) * Math.abs(Math.cos((0) * (Math.PI/180)))) > 40) {telemetry.addLine("VIPER SLIDE REACHED MAXIMUM HORIZONTAL LENGTH!");}
+
+        else {// Sets to 0 degrees
+        angleLarm = -trueZeroAngle;
+        }
       }
+      /* Here we set the target position of our arm to match the variable that was selected
+            by the driver.
+            We also set the target velocity (speed) the motor runs at, and use setMode to run it.*/
+
+      
+  
+      // Viper Slide Statements
+      if (gamepad1.left_bumper /* && slideAdjustTimer > slideAdjustTimerMax */) { // Extends (button)
+        // x = ((posSlide+16) * Math.cos((angleLarm-trueZeronAngle) * (Math.PI/180)));
+        if ((posSlide+16) * Math.abs(Math.cos((angleLarm + trueZeroAngle) * (Math.PI/180))) > 40) {telemetry.addLine("VIPER SLIDE REACHED MAXIMUM HORIZONTAL LENGTH!");}
+        
+        else if (posSlide > 28) {
+          telemetry.addLine("VIPER SLIDE AT MAXIMUM LENGTH!");
+        }
+        
+        else {
+          posSlideTicks += -1 * SLIDE_TICKS_PER_INCH;
+          posSlide += 1;
+          slideAdjustTimer = 0;
+          telemetry.addData("Cosine Value:", posSlide);
+        }
+      } 
+      else if (gamepad1.right_bumper /* && slideAdjustTimer > slideAdjustTimerMax */ ) { // Retracts (button)
+      
+        if (posSlide <= 1) {telemetry.addLine("VIPER SLIDE REACHED MINIMUM LENGTH!");}
+        
+        else if (posSlide <= 3 && clawOpen) {telemetry.addLine("CANT RETRACT TO PROTECT CLAW!");}
+        
+        else {
+          posSlideTicks += 1 * SLIDE_TICKS_PER_INCH;
+          posSlide -= 1;
+          slideAdjustTimer = 0;
+        }
+      } 
+      
+      
       // Claw Statements
-      if (gamepad1.a) { // button
+      if (gamepad1.a && clawTimer >= clawTimerMax) { // button
         if (clawOpen) {
           clawOpen = false;
           Intake.setPosition(0);
         }
         else {
           clawOpen = true;
-          Intake.setPosition(.5);
-  
+          Intake.setPosition(.45);
         }
-      
-        // servoPosStart += 0.05;
+        clawTimer = 0;
       }
+      
+      if (gamepad1.b && autoSpecimenTimer < autoSpecimenTimerMax) {
+        angleLarm = -62-trueZeroAngle;
+        telemetry.addLine("Going up the Angle");
+        sleep(100);
+        telemetry.addLine("Extending Viper Slide");
+        posSlide = 16;
+        posSlideTicks = -16 * SLIDE_TICKS_PER_INCH;
+        sleep(100);
+        telemetry.addLine("Finished");
+      }
+      
+      // if (gamepad1.b && clawTimer >= clawTimerMax) {angleLarmTicks += 10;}
+      
       // if (gamepad1.b) { // button
       //   if (wristOpen) {
       //     wristOpen = false;
-      //     Wrist.setPosition(0);
+      //     Wrist.setPosition(.1);
       //   }
       //   else {
       //     wristOpen = true;
-      //     Wrist.setPosition(1);
+      //     Wrist.setPosition(.75);
       //   }
         // }
+      
+      // Larm runs to position here
+      angleLarmTicks = -angleLarm * ARM_TICKS_PER_DEGREE; 
+      Larm.setTargetPosition((int) (angleLarmTicks));
+
+      ((DcMotorEx) Larm).setVelocity(2100);
+      Larm.setMode(DcMotor.RunMode.RUN_TO_POSITION);
+      
+      if (((DcMotorEx) Larm).isOverCurrent()){
+                telemetry.addLine("ARM MOTOR EXCEEDED CURRENT LIMIT!");
+            }
+      
+      // Viper Slide runs to position here   
+      telemetry.addData("Larm Position", Larm.getCurrentPosition());
+      if (Math.abs(Larm.getCurrentPosition() - angleLarmTicks) <= 20) {
+        ViperSlide.setTargetPosition((int) (posSlideTicks));
+        
+        ((DcMotorEx) ViperSlide).setVelocity(2100);
+        ViperSlide.setMode(DcMotor.RunMode.RUN_TO_POSITION);
+        }
+              
+      if (((DcMotorEx) ViperSlide).isOverCurrent()){
+                telemetry.addLine("VIPER SLIDE MOTOR EXCEEDED CURRENT LIMIT!");
+            }
+
       telemetry.update();
-    }
-  }
+    } 
+  } 
 }
